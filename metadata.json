@@ -1,0 +1,6 @@
+{
+  "name": "Golarys - گل آریس",
+  "description": "پلتفرم فروشگاهی و آنلاین گل و گیاه، کیف پول، پیگیری سفارشات و پنل فروشندگان گل آریس",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
