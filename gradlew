@@ -32,7 +32,7 @@ while [ -h "$PRG" ] ; do
     if expr "$link" : '/.*' > /dev/null; then
         PRG="$link"
     else
-        PRG=$(dirname "$PRG")"/$link"
+        PRG=$(dirname "$PRG")"/"$link"
     fi
 done
 SAVED="$(cd "$(dirname "$PRG")" >/dev/null 2>&1 && pwd)"
@@ -109,19 +109,10 @@ save () {
 APP_ARGS=$(save "$@")
 # Save all args for the Java call since it's easier to re-build the command line than to preprocess
 # the arguments here.
-# eval "set -- \$DEFAULT_JVM_OPTS \$JAVA_OPTS \$GRADLE_OPTS \"\-classpath\" \"\$CLASSPATH\" \"-Dorg.gradle.appname=\$APP_BASE_NAME\" -Dcom.android.tools.r8.dontoptimize \"-Dcom.android.tools.r8.keepattributes=*\" \$APP_ARGS \$@"
+set -- \
+        "-Dorg.gradle.appname=$APP_BASE_NAME" \
+        -classpath "$CLASSPATH" \
+        org.gradle.wrapper.GradleWrapperMain \
+        "$@"
 
-# Also add the standard Gradle args
-for opt in "${APP_ARGS[@]}"
-do
-    if [[ "$opt" == java* ]]; then
-        CLASSPATH="$CLASSPATH":"$opt"
-    else
-        set -- "$@" "$opt"
-    fi
-done
-
-exec "$JAVACMD" $DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS \
-    -classpath "$CLASSPATH" \
-    org.gradle.wrapper.GradleWrapperMain \
-    "$@"
+exec "$JAVACMD" "$@"
