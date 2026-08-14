@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,6 +20,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -36,6 +41,7 @@ import com.example.data.local.UserEntity
 import com.example.data.local.VendorApplicationEntity
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.GolarysViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 enum class VendorNavSection(
@@ -44,10 +50,24 @@ enum class VendorNavSection(
     val icon: ImageVector,
     val testTag: String
 ) {
-    PRODUCT_MANAGEMENT("مدیریت محصولات", "Product Management", Icons.Default.Inventory2, "nav_product_management"),
-    RECENT_ORDERS("سفارشات اخیر", "Recent Orders", Icons.Default.ReceiptLong, "nav_recent_orders"),
-    EARNINGS_OVERVIEW("نمای کلی درآمد", "Earnings Overview", Icons.Default.AccountBalanceWallet, "nav_earnings_overview")
+    PRODUCT_MANAGEMENT("محصولات", "Products", Icons.Default.Inventory2, "nav_product_management"),
+    RECENT_ORDERS("سفارشات", "Orders", Icons.Default.ReceiptLong, "nav_recent_orders"),
+    SALES_ANALYTICS("نمودار فروش", "Analytics", Icons.Default.BarChart, "nav_sales_analytics"),
+    FLASH_DEALS("تخفیف شگفت‌انگیز", "Flash Deals", Icons.Default.FlashOn, "nav_flash_deals"),
+    EARNINGS_OVERVIEW("درآمد و تسویه", "Earnings", Icons.Default.AccountBalanceWallet, "nav_earnings_overview")
 }
+
+data class FlashDealItem(
+    val id: String,
+    val product: FlowerProductEntity,
+    val discountPercent: Int,
+    val discountedPriceToman: Long,
+    val originalPriceToman: Long,
+    val durationHours: Int,
+    var remainingSeconds: Long,
+    var isActive: Boolean = true,
+    val soldCount: Int = 12
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,8 +87,35 @@ fun VendorDashboardScreen(
     val coroutineScope = rememberCoroutineScope()
     var showAddProductDialog by remember { mutableStateOf(false) }
 
+    // Flash Deals in-memory state
+    val flashDeals = remember(products) {
+        mutableStateListOf(
+            FlashDealItem(
+                id = "FLASH-01",
+                product = products.firstOrNull() ?: FlowerProductEntity(
+                    id = "PROD-101",
+                    titleFa = "دسته‌گل رز هلندی و زنبق طلایی",
+                    titleEn = "Golden Iris & Rose",
+                    category = "دسته‌گل",
+                    priceToman = 1450000,
+                    originalPriceToman = 1750000,
+                    description = "ترکیب زنبق و رز ممتاز",
+                    lightReq = "نور غیرمستقیم",
+                    waterReq = "تعویض آب",
+                    tempReq = "۱۸ درجه"
+                ),
+                discountPercent = 25,
+                discountedPriceToman = 1087500,
+                originalPriceToman = 1450000,
+                durationHours = 6,
+                remainingSeconds = 14320,
+                isActive = true,
+                soldCount = 18
+            )
+        )
+    }
+
     if (!isVendor) {
-        // Not a vendor yet -> Show Application Form with preview switch
         VendorRegistrationForm(
             userApp = userApp,
             onPreviewClick = { isVendorPreviewMode = true },
@@ -77,7 +124,6 @@ fun VendorDashboardScreen(
             }
         )
     } else {
-        // Vendor Dashboard with Side Navigation Drawer
         ModalNavigationDrawer(
             drawerState = drawerState,
             drawerContent = {
@@ -90,6 +136,7 @@ fun VendorDashboardScreen(
                         currentSection = selectedSection,
                         productsCount = products.size,
                         ordersCount = orders.size,
+                        flashDealsCount = flashDeals.count { it.isActive },
                         onSectionSelected = { section ->
                             selectedSection = section
                             coroutineScope.launch { drawerState.close() }
@@ -106,7 +153,7 @@ fun VendorDashboardScreen(
                     .fillMaxSize()
                     .background(SurfaceLight)
             ) {
-                // Dashboard Header with Side Menu Drawer Trigger
+                // Header with Side Drawer Button
                 Surface(
                     color = BotanicalGreenDark,
                     shadowElevation = 4.dp
@@ -186,22 +233,21 @@ fun VendorDashboardScreen(
                             }
                         }
 
-                        // Quick Navigation Strip for convenience
+                        // Quick Navigation Strip
                         Spacer(modifier = Modifier.height(10.dp))
-                        Row(
+                        LazyRow(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            VendorNavSection.entries.forEach { section ->
+                            items(VendorNavSection.entries) { section ->
                                 val isSelected = selectedSection == section
                                 Surface(
                                     onClick = { selectedSection = section },
                                     color = if (isSelected) HeritageGold else Color.White.copy(alpha = 0.12f),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.weight(1f)
+                                    shape = RoundedCornerShape(10.dp)
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 6.dp),
+                                        modifier = Modifier.padding(vertical = 7.dp, horizontal = 10.dp),
                                         horizontalArrangement = Arrangement.Center,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
@@ -211,13 +257,12 @@ fun VendorDashboardScreen(
                                             tint = if (isSelected) DeepNavy else Color.White,
                                             modifier = Modifier.size(15.dp)
                                         )
-                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Spacer(modifier = Modifier.width(5.dp))
                                         Text(
                                             text = section.titleFa,
-                                            fontSize = 10.5.sp,
+                                            fontSize = 11.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) DeepNavy else Color.White,
-                                            maxLines = 1
+                                            color = if (isSelected) DeepNavy else Color.White
                                         )
                                     }
                                 }
@@ -226,7 +271,7 @@ fun VendorDashboardScreen(
                     }
                 }
 
-                // Dashboard Main Content Section with Crossfade Transition
+                // Main Content Switching
                 Box(modifier = Modifier.fillMaxSize()) {
                     Crossfade(
                         targetState = selectedSection,
@@ -241,6 +286,17 @@ fun VendorDashboardScreen(
 
                             VendorNavSection.RECENT_ORDERS -> RecentOrdersSection(
                                 orders = orders,
+                                viewModel = viewModel
+                            )
+
+                            VendorNavSection.SALES_ANALYTICS -> SalesAnalyticsSection(
+                                orders = orders,
+                                products = products
+                            )
+
+                            VendorNavSection.FLASH_DEALS -> FlashDealsSection(
+                                products = products,
+                                flashDeals = flashDeals,
                                 viewModel = viewModel
                             )
 
@@ -259,7 +315,7 @@ fun VendorDashboardScreen(
     if (showAddProductDialog) {
         AddProductDialog(
             onDismiss = { showAddProductDialog = false },
-            onAddProduct = { titleFa, titleEn, category, price, origPrice, desc, light, water, temp ->
+            onAddProduct = { titleFa: String, titleEn: String, category: String, price: Long, origPrice: Long, desc: String, light: String, water: String, temp: String ->
                 viewModel.addProduct(titleFa, titleEn, category, price, origPrice, desc, light, water, temp)
                 showAddProductDialog = false
             }
@@ -272,6 +328,7 @@ fun VendorSideNavContent(
     currentSection: VendorNavSection,
     productsCount: Int,
     ordersCount: Int,
+    flashDealsCount: Int,
     onSectionSelected: (VendorNavSection) -> Unit,
     onCloseDrawer: () -> Unit
 ) {
@@ -303,13 +360,13 @@ fun VendorSideNavContent(
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
-                        text = "غرفه گل رز پالاس",
+                        text = "غرفه بوتیک گل آریس",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         color = Color.White
                     )
                     Text(
-                        text = "فروشنده برتر گل آریس",
+                        text = "فروشنده برتر و مورد تایید",
                         fontSize = 10.5.sp,
                         color = HeritageGold
                     )
@@ -330,7 +387,7 @@ fun VendorSideNavContent(
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "منوی مدیریت فروشگاه (Side Navigation)",
+            text = "منوی ناوبری و مدیریت فروشگاه:",
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             color = Color.White.copy(alpha = 0.6f),
@@ -344,7 +401,9 @@ fun VendorSideNavContent(
             val badgeText = when (section) {
                 VendorNavSection.PRODUCT_MANAGEMENT -> "$productsCount کالا"
                 VendorNavSection.RECENT_ORDERS -> "$ordersCount سفارش"
-                VendorNavSection.EARNINGS_OVERVIEW -> "فعال"
+                VendorNavSection.SALES_ANALYTICS -> "+۱۸٪ رشد"
+                VendorNavSection.FLASH_DEALS -> "$flashDealsCount فعال"
+                VendorNavSection.EARNINGS_OVERVIEW -> "تسویه شبا"
             }
 
             Surface(
@@ -353,13 +412,13 @@ fun VendorSideNavContent(
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp)
+                    .padding(vertical = 3.dp)
                     .testTag(section.testTag)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                        .padding(horizontal = 12.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -392,7 +451,7 @@ fun VendorSideNavContent(
                     ) {
                         Text(
                             text = badgeText,
-                            fontSize = 10.sp,
+                            fontSize = 9.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (isSelected) DeepNavy else Color.White,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -404,7 +463,7 @@ fun VendorSideNavContent(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Side Menu Footer Card
+        // Footer status badge
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = DeepNavyLight),
@@ -420,7 +479,7 @@ fun VendorSideNavContent(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "وضعیت فروشگاه: فعال و آنلاین",
+                        text = "وضعیت غرفه: فعال و آنلاین",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -428,7 +487,7 @@ fun VendorSideNavContent(
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "ارسال سریع و تضمین طراوت گل آریس",
+                    text = "تضمین تحویل ۲ ساعته در سراسر تهران",
                     fontSize = 10.sp,
                     color = Color.White.copy(alpha = 0.6f)
                 )
@@ -438,7 +497,7 @@ fun VendorSideNavContent(
 }
 
 /* ========================================================================= */
-/* 1. PRODUCT MANAGEMENT SECTION (مدیریت محصولات)                           */
+/* 1. PRODUCT MANAGEMENT SECTION                                             */
 /* ========================================================================= */
 @Composable
 fun ProductManagementSection(
@@ -461,7 +520,6 @@ fun ProductManagementSection(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Product Management Placeholder & Stats Banner
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -504,7 +562,6 @@ fun ProductManagementSection(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Metrics row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -538,25 +595,19 @@ fun ProductManagementSection(
             }
         }
 
-        // Search & Filter controls
+        // Search & Filter
         item {
-            Row(
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("جستجوی نام گل در فهرست...", fontSize = 12.sp) },
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+                },
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("جستجوی نام گل در فهرست...", fontSize = 12.sp) },
-                    leadingIcon = {
-                        Icon(Icons.Default.Search, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
-                    },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true
-                )
-            }
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
+            )
         }
 
         // Category filter chips
@@ -579,7 +630,6 @@ fun ProductManagementSection(
             }
         }
 
-        // Products List / Placeholders
         if (filteredProducts.isEmpty()) {
             item {
                 EmptyPlaceholderCard(
@@ -701,7 +751,7 @@ fun ProductManagementCard(
 }
 
 /* ========================================================================= */
-/* 2. RECENT ORDERS SECTION (سفارشات اخیر)                                   */
+/* 2. RECENT ORDERS SECTION                                                  */
 /* ========================================================================= */
 @Composable
 fun RecentOrdersSection(
@@ -727,7 +777,6 @@ fun RecentOrdersSection(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Recent Orders Header & Overview Placeholder
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -782,7 +831,6 @@ fun RecentOrdersSection(
             }
         }
 
-        // Status Filter Chips
         item {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -971,7 +1019,784 @@ fun RecentOrderItemCard(
 }
 
 /* ========================================================================= */
-/* 3. EARNINGS OVERVIEW SECTION (نمای کلی درآمد)                             */
+/* 3. SALES ANALYTICS SECTION (نمودار و آمار تحلیلی فروش)                     */
+/* ========================================================================= */
+@Composable
+fun SalesAnalyticsSection(
+    orders: List<OrderEntity>,
+    products: List<FlowerProductEntity>
+) {
+    // Days sales data for weekly bar chart (شنبه تا جمعه)
+    val weeklyDays = listOf("ش", "ی", "د", "س", "چ", "پ", "ج")
+    val dayNames = listOf("شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنج‌شنبه", "جمعه")
+    val dayValues = listOf(1450000L, 2100000L, 1890000L, 3200000L, 2800000L, 4650000L, 5100000L)
+    val maxDayValue = dayValues.maxOrNull() ?: 5000000L
+    var selectedDayIndex by remember { mutableIntStateOf(6) } // Default Friday peak
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Analytics Header
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "📊 آمار و شاخص‌های تحلیلی فروش",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = BotanicalGreenDark
+                            )
+                            Text(
+                                text = "Weekly Sales & Performance KPI Analytics",
+                                fontSize = 11.sp,
+                                color = TextSecondary
+                            )
+                        }
+
+                        Surface(
+                            color = SuccessGreen.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = "📈 +۱۸.۴٪ رشد هفتگی",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SuccessGreen,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // 4 Key KPI Metrics
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        MetricPlaceholderChip(
+                            title = "فروش کل هفته",
+                            value = "۲۱,۱۹۰,۰۰۰ تومان",
+                            icon = Icons.Default.TrendingUp,
+                            containerColor = BotanicalGreen.copy(alpha = 0.1f),
+                            contentColor = BotanicalGreenDark,
+                            modifier = Modifier.weight(1f)
+                        )
+                        MetricPlaceholderChip(
+                            title = "میانگین سبد (AOV)",
+                            value = "۱,۶۸۰,۰۰۰ تومان",
+                            icon = Icons.Default.ShoppingBag,
+                            containerColor = HeritageGold.copy(alpha = 0.2f),
+                            contentColor = DeepNavy,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        MetricPlaceholderChip(
+                            title = "رضایت مشتریان",
+                            value = "۴.۹ از ۵ ⭐ (۹۸٪)",
+                            icon = Icons.Default.Star,
+                            containerColor = HeritageGold.copy(alpha = 0.15f),
+                            contentColor = DeepNavy,
+                            modifier = Modifier.weight(1f)
+                        )
+                        MetricPlaceholderChip(
+                            title = "میانگین آماده‌سازی",
+                            value = "۳۵ دقیقه",
+                            icon = Icons.Default.Timer,
+                            containerColor = DeepNavy.copy(alpha = 0.08f),
+                            contentColor = DeepNavy,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Custom Weekly Bar Chart
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, CardBorder)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "📈 نمودار میله‌ای درآمد روزانه (۷ روز اخیر)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp,
+                            color = TextPrimary
+                        )
+
+                        Text(
+                            text = "${dayNames[selectedDayIndex]}: ${GolarysViewModel.formatPrice(dayValues[selectedDayIndex])} تومان",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BotanicalGreen
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Bar Chart with Canvas
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(160.dp)
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val barCount = dayValues.size
+                            val spacing = size.width / (barCount * 2)
+                            val barWidth = (size.width - (spacing * (barCount + 1))) / barCount
+
+                            for (i in 0 until barCount) {
+                                val value = dayValues[i]
+                                val barHeightRatio = (value.toFloat() / maxDayValue.toFloat()).coerceIn(0.1f, 1f)
+                                val barHeight = (size.height - 30.dp.toPx()) * barHeightRatio
+                                val left = spacing + i * (barWidth + spacing)
+                                val top = size.height - 30.dp.toPx() - barHeight
+
+                                val isSelected = i == selectedDayIndex
+                                val barBrush = if (isSelected) {
+                                    Brush.verticalGradient(
+                                        colors = listOf(HeritageGold, BotanicalGreen)
+                                    )
+                                } else {
+                                    Brush.verticalGradient(
+                                        colors = listOf(BotanicalGreenLight, BotanicalGreen.copy(alpha = 0.6f))
+                                    )
+                                }
+
+                                drawRoundRect(
+                                    brush = barBrush,
+                                    topLeft = Offset(left, top),
+                                    size = Size(barWidth, barHeight),
+                                    cornerRadius = CornerRadius(12f, 12f)
+                                )
+                            }
+                        }
+
+                        // Day selector buttons over chart
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.BottomCenter)
+                                .padding(top = 130.dp),
+                            horizontalArrangement = Arrangement.SpaceAround
+                        ) {
+                            weeklyDays.forEachIndexed { index, day ->
+                                val isSelected = index == selectedDayIndex
+                                Text(
+                                    text = day,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) BotanicalGreenDark else TextSecondary,
+                                    modifier = Modifier
+                                        .clickable { selectedDayIndex = index }
+                                        .padding(4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Category Sales Breakdown
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, CardBorder)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "💐 سهم دسته‌بندی‌ها در سبد فروش غرفه",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp,
+                        color = TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    CategoryShareItem(title = "دسته‌گل و باکس طبیعی", percent = 45, color = BotanicalGreen, amountText = "۹,۵۰۰,۰۰۰ تومان")
+                    CategoryShareItem(title = "گیاهان آپارتمانی و مقاوم", percent = 30, color = DeepNavy, amountText = "۶,۳۵۰,۰۰۰ تومان")
+                    CategoryShareItem(title = "رز جاودان و پکیج‌های هدیه", percent = 15, color = HeritageGold, amountText = "۳,۱۸۰,۰۰۰ تومان")
+                    CategoryShareItem(title = "گلدان سرامیکی و لوازم جانبی", percent = 10, color = AccentCoral, amountText = "۲,۱۶۰,۰۰۰ تومان")
+                }
+            }
+        }
+
+        // Top Selling Products Leaderboard
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, CardBorder)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "🏆 ۳ محصول پرفروش این هفته (رتبه‌بندی غرفه)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp,
+                        color = TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    TopSellerRankItem(
+                        rank = "🥇 رتبه اول",
+                        title = "دسته‌گل رز هلندی و زنبق طلایی آریس",
+                        soldCount = "۴۲ عدد",
+                        revenueText = "۶۰,۹۰۰,۰۰۰ تومان",
+                        rankColor = HeritageGold
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    TopSellerRankItem(
+                        rank = "🥈 رتبه دوم",
+                        title = "باکس چرمی گل رز و شکلات بلژیکی",
+                        soldCount = "۲۸ عدد",
+                        revenueText = "۶۵,۸۰۰,۰۰۰ تومان",
+                        rankColor = Color.Gray
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    TopSellerRankItem(
+                        rank = "🥉 رتبه سوم",
+                        title = "سانسوریا ابلق پا کوتاه (گلدان طلایی)",
+                        soldCount = "۲۴ عدد",
+                        revenueText = "۱۶,۳۲۰,۰۰۰ تومان",
+                        rankColor = DeepNavy
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CategoryShareItem(
+    title: String,
+    percent: Int,
+    color: Color,
+    amountText: String
+) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = title, fontSize = 11.5.sp, color = TextPrimary)
+            Text(text = "$percent٪ ($amountText)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color)
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        LinearProgressIndicator(
+            progress = { percent / 100f },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp)),
+            color = color,
+            trackColor = color.copy(alpha = 0.15f)
+        )
+    }
+}
+
+@Composable
+fun TopSellerRankItem(
+    rank: String,
+    title: String,
+    soldCount: String,
+    revenueText: String,
+    rankColor: Color
+) {
+    Surface(
+        color = SurfaceLight,
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    color = rankColor.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        text = rank,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text(text = title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Text(text = "فروش: $soldCount", fontSize = 10.5.sp, color = TextSecondary)
+                }
+            }
+
+            Text(text = revenueText, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = BotanicalGreen)
+        }
+    }
+}
+
+/* ========================================================================= */
+/* 4. FLASH DEALS & PROMOTIONS SECTION (تخفیف‌های زمان‌دار و شگفت‌انگیز)      */
+/* ========================================================================= */
+@Composable
+fun FlashDealsSection(
+    products: List<FlowerProductEntity>,
+    flashDeals: MutableList<FlashDealItem>,
+    viewModel: GolarysViewModel
+) {
+    var showCreateDealDialog by remember { mutableStateOf(false) }
+
+    // Live countdown timer effect
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            flashDeals.forEach { deal ->
+                if (deal.isActive && deal.remainingSeconds > 0) {
+                    deal.remainingSeconds--
+                }
+            }
+        }
+    }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Flash Deals Header Banner
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(DeepNavy, BotanicalGreenDark)
+                            )
+                        )
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.FlashOn, contentDescription = null, tint = HeritageGold, modifier = Modifier.size(22.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "تخفیف‌های شگفت‌انگیز و زمان‌دار",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 15.sp,
+                                    color = Color.White
+                                )
+                            }
+                            Text(
+                                text = "ایجاد حراج ساعتی برای فروش سریع گل‌های تازه",
+                                fontSize = 11.sp,
+                                color = Color.White.copy(alpha = 0.8f)
+                            )
+                        }
+
+                        Button(
+                            onClick = { showCreateDealDialog = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = HeritageGold),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.testTag("btn_create_flash_deal")
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, tint = DeepNavy, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = "ایجاد تخفیف", color = DeepNavy, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Active Promotions List
+        if (flashDeals.isEmpty()) {
+            item {
+                EmptyPlaceholderCard(
+                    icon = Icons.Default.FlashOn,
+                    title = "هیچ تخفیف شگفت‌انگیزی فعال نیست",
+                    subtitle = "با تعریف تخفیف زمان‌دار، محصولات شما با برچسب ویژه در صفحه اول به خریداران پیشنهاد می‌شود.",
+                    actionLabel = "⚡ تعریف تخفیف شگفت‌انگیز جدید",
+                    onAction = { showCreateDealDialog = true }
+                )
+            }
+        } else {
+            items(flashDeals) { deal ->
+                FlashDealCard(
+                    deal = deal,
+                    onToggleActive = {
+                        deal.isActive = !deal.isActive
+                        viewModel.showToast(if (deal.isActive) "تخفیف شگفت‌انگیز فعال شد." else "تخفیف موقتاً متوقف گردید.")
+                    },
+                    onDelete = {
+                        flashDeals.remove(deal)
+                        viewModel.showToast("تخفیف شگفت‌انگیز حذف شد.")
+                    }
+                )
+            }
+        }
+    }
+
+    if (showCreateDealDialog) {
+        CreateFlashDealDialog(
+            products = products,
+            onDismiss = { showCreateDealDialog = false },
+            onCreate = { product, percent, durationHours ->
+                val discountAmount = (product.priceToman * percent) / 100
+                val discountedPrice = product.priceToman - discountAmount
+                val newDeal = FlashDealItem(
+                    id = "FLASH-${System.currentTimeMillis() % 10000}",
+                    product = product,
+                    discountPercent = percent,
+                    discountedPriceToman = discountedPrice,
+                    originalPriceToman = product.priceToman,
+                    durationHours = durationHours,
+                    remainingSeconds = durationHours * 3600L,
+                    isActive = true
+                )
+                flashDeals.add(0, newDeal)
+                viewModel.showToast("تخفیف شگفت‌انگیز $percent٪ برای «${product.titleFa}» فعال گردید!")
+                showCreateDealDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+fun FlashDealCard(
+    deal: FlashDealItem,
+    onToggleActive: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val context = LocalContext.current
+    val imageResId = remember(deal.product.drawableResName, context) {
+        val id = context.resources.getIdentifier(deal.product.drawableResName, "drawable", context.packageName)
+        if (id != 0) id else R.drawable.ic_launcher_background
+    }
+
+    val hours = deal.remainingSeconds / 3600
+    val minutes = (deal.remainingSeconds % 3600) / 60
+    val seconds = deal.remainingSeconds % 60
+    val timerString = String.format("%02d:%02d:%02d", hours, minutes, seconds)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.5.dp, if (deal.isActive) HeritageGold else CardBorder)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        color = ErrorRed,
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = "${deal.discountPercent}٪ تخفیف",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = deal.product.titleFa,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp,
+                        color = TextPrimary
+                    )
+                }
+
+                Surface(
+                    color = if (deal.isActive) SuccessGreen.copy(alpha = 0.12f) else Color.Gray.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        text = if (deal.isActive) "در حال اجرا" else "متوقف شده",
+                        color = if (deal.isActive) SuccessGreen else Color.Gray,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(60.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                ) {
+                    Image(
+                        painter = painterResource(id = imageResId),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "${GolarysViewModel.formatPrice(deal.discountedPriceToman)} تومان",
+                            fontWeight = FontWeight.ExtraBold,
+                            color = BotanicalGreenDark,
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "${GolarysViewModel.formatPrice(deal.originalPriceToman)}",
+                            fontSize = 11.sp,
+                            color = TextSecondary
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Timer, contentDescription = null, tint = ErrorRed, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "زمان باقی‌مانده: $timerString",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = ErrorRed
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            HorizontalDivider(color = CardBorder)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "📦 تعداد فروخته شده با این آفر: ${deal.soldCount} عدد",
+                    fontSize = 11.sp,
+                    color = TextSecondary
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TextButton(onClick = onToggleActive) {
+                        Text(
+                            text = if (deal.isActive) "توقف موقت" else "فعال‌سازی مجدد",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (deal.isActive) DeepNavy else BotanicalGreen
+                        )
+                    }
+
+                    IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.DeleteOutline, contentDescription = "حذف تخفیف", tint = ErrorRed, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CreateFlashDealDialog(
+    products: List<FlowerProductEntity>,
+    onDismiss: () -> Unit,
+    onCreate: (FlowerProductEntity, Int, Int) -> Unit
+) {
+    var selectedProduct by remember { mutableStateOf(products.firstOrNull()) }
+    var selectedDiscountPercent by remember { mutableIntStateOf(20) }
+    var selectedDurationHours by remember { mutableIntStateOf(6) }
+
+    val discountPresets = listOf(15, 20, 25, 35, 50)
+    val durationPresets = listOf(2, 6, 12, 24)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "⚡ ایجاد تخفیف شگفت‌انگیز ساعتی",
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = BotanicalGreenDark
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(text = "انتخاب گل یا گیاه از فهرست:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(products) { prod ->
+                        val isSelected = selectedProduct?.id == prod.id
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { selectedProduct = prod },
+                            label = { Text(prod.titleFa, fontSize = 11.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = BotanicalGreen,
+                                selectedLabelColor = Color.White
+                            )
+                        )
+                    }
+                }
+
+                Text(text = "درصد تخفیف شگفت‌انگیز:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    discountPresets.forEach { p ->
+                        val isSelected = selectedDiscountPercent == p
+                        Surface(
+                            onClick = { selectedDiscountPercent = p },
+                            color = if (isSelected) ErrorRed else SurfaceLight,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = "$p٪",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) Color.White else TextPrimary,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                    }
+                }
+
+                Text(text = "مدت زمان اعتبار تخفیف:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    durationPresets.forEach { d ->
+                        val isSelected = selectedDurationHours == d
+                        Surface(
+                            onClick = { selectedDurationHours = d },
+                            color = if (isSelected) DeepNavy else SurfaceLight,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = "$d ساعت",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) Color.White else TextPrimary,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                    }
+                }
+
+                selectedProduct?.let { prod ->
+                    val discounted = prod.priceToman - (prod.priceToman * selectedDiscountPercent / 100)
+                    Surface(
+                        color = BotanicalGreen.copy(alpha = 0.08f),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(text = "پیش‌نمایش قیمت فروش شگفت‌انگیز:", fontSize = 11.sp, color = TextSecondary)
+                            Text(
+                                text = "${GolarysViewModel.formatPrice(discounted)} تومان",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BotanicalGreenDark
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    selectedProduct?.let { prod ->
+                        onCreate(prod, selectedDiscountPercent, selectedDurationHours)
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = BotanicalGreen),
+                enabled = selectedProduct != null
+            ) {
+                Text("شروع کمپین حراج ⚡", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("انصراف", color = TextSecondary)
+            }
+        }
+    )
+}
+
+/* ========================================================================= */
+/* 5. EARNINGS & SETTLEMENT SECTION                                          */
 /* ========================================================================= */
 @Composable
 fun EarningsOverviewSection(
@@ -993,253 +1818,118 @@ fun EarningsOverviewSection(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Main Balance Highlight Card
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = DeepNavy),
+                shape = RoundedCornerShape(18.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "💰 درآمد و موجودی قابل تسویه",
-                            color = Color.White.copy(alpha = 0.85f),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(BotanicalGreenDark, DeepNavy)
+                            )
                         )
-                        Surface(
-                            color = HeritageGold.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(8.dp)
+                        .padding(18.dp)
+                ) {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Earnings Overview",
-                                color = HeritageGold,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                text = "موجودی قابل تسویه غرفه",
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 12.sp
+                            )
+                            Icon(
+                                imageVector = Icons.Default.AccountBalanceWallet,
+                                contentDescription = null,
+                                tint = HeritageGold,
+                                modifier = Modifier.size(24.dp)
                             )
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = "${GolarysViewModel.formatPrice(vendorBalance)} تومان",
-                        color = HeritageGold,
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "تسویه آنی پایا و ساتنا ظرف ۲۴ ساعت پس از ثبت درخواست",
-                        color = Color.White.copy(alpha = 0.65f),
-                        fontSize = 11.sp
-                    )
-                }
-            }
-        }
-
-        // Financial Analytics Grid
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Card(
-                    modifier = Modifier.weight(1f),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, CardBorder)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(text = "فروش ناخالص کل", fontSize = 11.sp, color = TextSecondary)
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "${GolarysViewModel.formatPrice(totalSalesToman)} ت",
-                            fontSize = 13.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = BotanicalGreenDark
+                            text = "${GolarysViewModel.formatPrice(vendorBalance)} تومان",
+                            color = Color.White,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.ExtraBold
                         )
-                    }
-                }
-
-                Card(
-                    modifier = Modifier.weight(1f),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, CardBorder)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(text = "کارمزد پلتفرم (۵٪)", fontSize = 11.sp, color = TextSecondary)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "${GolarysViewModel.formatPrice(platformFeeToman)} ت",
-                            fontSize = 13.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = DeepNavy
-                        )
-                    }
-                }
-
-                Card(
-                    modifier = Modifier.weight(1f),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, CardBorder)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(text = "درآمد خالص", fontSize = 11.sp, color = TextSecondary)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "${GolarysViewModel.formatPrice(netEarningsToman)} ت",
-                            fontSize = 13.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SuccessGreen
+                            text = "تسویه اتوماتیک پایا و ساتنا هر ۴۸ ساعت یک‌بار",
+                            fontSize = 11.sp,
+                            color = HeritageGoldLight
                         )
                     }
                 }
             }
         }
 
-        // Payout Request Form
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                border = BorderStroke(1.dp, CardBorder)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "💳 ثبت درخواست واریز وجه و تسویه شبا",
+                        text = "💳 درخواست تسویه حساب به شماره شبا",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
-                        color = TextPrimary
+                        color = BotanicalGreenDark
                     )
                     Spacer(modifier = Modifier.height(10.dp))
 
                     OutlinedTextField(
                         value = withdrawIban,
                         onValueChange = { withdrawIban = it },
-                        label = { Text("شماره شبا مقصد (IR...)", fontSize = 11.sp) },
+                        label = { Text("شماره شبا بانکی (IR...)", fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                         singleLine = true
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    Row(
+                    OutlinedTextField(
+                        value = withdrawAmountText,
+                        onValueChange = { withdrawAmountText = it },
+                        label = { Text("مبلغ تسویه (تومان)", fontSize = 12.sp) },
+                        placeholder = { Text("مثلاً ۲,۰۰۰,۰۰۰", fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = {
+                            val amount = withdrawAmountText.toLongOrNull() ?: 1000000L
+                            viewModel.withdrawVendorBalance(withdrawIban, amount)
+                            withdrawAmountText = ""
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = BotanicalGreen),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        OutlinedTextField(
-                            value = withdrawAmountText,
-                            onValueChange = { withdrawAmountText = it },
-                            placeholder = { Text("مبلغ تسویه (تومان)...", fontSize = 12.sp) },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
-                            singleLine = true
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                val amt = withdrawAmountText.toLongOrNull() ?: 1000000L
-                                viewModel.withdrawVendorBalance(withdrawIban, amt)
-                                withdrawAmountText = ""
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = BotanicalGreen),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text(text = "ثبت تسویه", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
+                        Icon(Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(text = "ثبت درخواست تسویه و واریز به حساب", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
-            }
-        }
-
-        // Settlement History Placeholder
-        item {
-            Text(
-                text = "📋 تاریخچه تسویه‌حساب‌های اخیر",
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.5.sp,
-                color = TextPrimary
-            )
-        }
-
-        item {
-            SettlementHistoryItem(
-                id = "SET-9941",
-                date = "امروز - ۱۲:۳۰",
-                amountToman = 2500000L,
-                status = "تکمیل شده (پایا)",
-                statusColor = SuccessGreen
-            )
-        }
-
-        item {
-            SettlementHistoryItem(
-                id = "SET-8812",
-                date = "دیروز - ۱۸:۰۰",
-                amountToman = 1800000L,
-                status = "واریز شده",
-                statusColor = SuccessGreen
-            )
-        }
-    }
-}
-
-@Composable
-fun SettlementHistoryItem(
-    id: String,
-    date: String,
-    amountToman: Long,
-    status: String,
-    statusColor: Color
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, CardBorder)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(text = "شناسه تسویه: $id", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                Text(text = date, fontSize = 10.5.sp, color = TextSecondary)
-            }
-
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = "${GolarysViewModel.formatPrice(amountToman)} تومان",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    color = BotanicalGreenDark
-                )
-                Text(
-                    text = status,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = statusColor
-                )
             }
         }
     }
 }
 
 /* ========================================================================= */
-/* HELPER COMPONENTS                                                         */
+/* SHARED HELPER COMPOSABLES                                                 */
 /* ========================================================================= */
 @Composable
 fun MetricPlaceholderChip(
@@ -1251,34 +1941,19 @@ fun MetricPlaceholderChip(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier,
         color = containerColor,
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier
     ) {
         Column(
-            modifier = Modifier.padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = contentColor,
-                modifier = Modifier.size(18.dp)
-            )
+            Icon(imageVector = icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = value,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 14.sp,
-                color = contentColor
-            )
-            Text(
-                text = title,
-                fontSize = 9.5.sp,
-                color = contentColor.copy(alpha = 0.85f),
-                textAlign = TextAlign.Center,
-                maxLines = 1
-            )
+            Text(text = title, fontSize = 9.5.sp, color = TextSecondary, maxLines = 1)
+            Text(text = value, fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, color = contentColor, maxLines = 1)
         }
     }
 }
@@ -1305,43 +1980,25 @@ fun EmptyPlaceholderCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(54.dp)
-                    .background(SurfaceVariantLight, CircleShape),
+                    .size(56.dp)
+                    .background(BotanicalGreen.copy(alpha = 0.1f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = BotanicalGreen,
-                    modifier = Modifier.size(28.dp)
-                )
+                Icon(imageVector = icon, contentDescription = null, tint = BotanicalGreen, modifier = Modifier.size(28.dp))
             }
-
             Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = title,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = TextPrimary,
-                textAlign = TextAlign.Center
-            )
+            Text(text = title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = subtitle,
-                fontSize = 11.5.sp,
-                color = TextSecondary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
+            Text(text = subtitle, fontSize = 11.5.sp, color = TextSecondary, textAlign = TextAlign.Center)
 
-            if (actionLabel != null) {
+            actionLabel?.let { label ->
                 Spacer(modifier = Modifier.height(14.dp))
                 Button(
                     onClick = onAction,
                     colors = ButtonDefaults.buttonColors(containerColor = BotanicalGreen),
                     shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text(text = actionLabel, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(text = label, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -1357,7 +2014,7 @@ fun VendorRegistrationForm(
     var shopName by remember { mutableStateOf("") }
     var managerName by remember { mutableStateOf("") }
     var nationalId by remember { mutableStateOf("") }
-    var iban by remember { mutableStateOf("IR") }
+    var iban by remember { mutableStateOf("") }
     var city by remember { mutableStateOf("تهران") }
     var address by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
@@ -1369,31 +2026,69 @@ fun VendorRegistrationForm(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Quick Preview Action Banner
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = DeepNavy)
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(BotanicalGreenDark, DeepNavy)
+                            )
+                        )
+                        .padding(16.dp)
+                ) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Storefront, contentDescription = null, tint = HeritageGold, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "همکاری با گل آریس به عنوان فروشنده",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = Color.White
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "به بزرگترین پلتفرم آنلاین گل و گیاه کشور بپیوندید و فروشگاه اختصاصی خود را مدیریت کنید.",
+                            fontSize = 11.5.sp,
+                            color = Color.White.copy(alpha = 0.85f)
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = HeritageGold.copy(alpha = 0.12f)),
+                border = BorderStroke(1.dp, HeritageGold)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Visibility, contentDescription = null, tint = DeepNavy, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "🏪 پیش‌نمایش پنل فروشندگان گل آریس",
+                            text = "مشاهده پیش‌نمایش پنل غرفه‌داران",
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp,
-                            color = HeritageGold
-                        )
-                        Text(
-                            text = "مشاهده منوی سایدبار، مدیریت کالاها، سفارشات و تسویه حساب",
-                            fontSize = 10.5.sp,
-                            color = Color.White.copy(alpha = 0.8f)
+                            color = DeepNavy
                         )
                     }
 

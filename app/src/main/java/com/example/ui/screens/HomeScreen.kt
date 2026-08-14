@@ -8,10 +8,10 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LocalOffer
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -38,7 +39,8 @@ fun HomeScreen(
     onCategorySelect: (String) -> Unit,
     onProductClick: (FlowerProductEntity) -> Unit,
     onAddToCartClick: (FlowerProductEntity) -> Unit,
-    onWishlistClick: (FlowerProductEntity) -> Unit
+    onWishlistClick: (FlowerProductEntity) -> Unit,
+    onPlantDoctorClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val heroResId = remember(context) {
@@ -68,14 +70,14 @@ fun HomeScreen(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             shape = RoundedCornerShape(20.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp)
+                    .height(130.dp)
             ) {
                 Image(
                     painter = painterResource(id = heroResId),
@@ -91,8 +93,8 @@ fun HomeScreen(
                         .background(
                             Brush.horizontalGradient(
                                 colors = listOf(
-                                    DeepNavy.copy(alpha = 0.85f),
-                                    BotanicalGreen.copy(alpha = 0.6f)
+                                    DeepNavy.copy(alpha = 0.88f),
+                                    BotanicalGreen.copy(alpha = 0.65f)
                                 )
                             )
                         )
@@ -101,7 +103,7 @@ fun HomeScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(16.dp),
+                        .padding(14.dp),
                     verticalArrangement = Arrangement.Center
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -113,7 +115,7 @@ fun HomeScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "جشنواره خرید گل و گیاه آریس 🌺",
+                            text = "جشنواره گل آریس 🌺",
                             color = HeritageGold,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
@@ -123,22 +125,86 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "۱۵٪ تخفیف ویژه سفارش اول با کد: GOLARYS1403",
+                        text = "۱۵٪ تخفیف ویژه سفارش اول: GOLARYS1403",
                         color = Color.White,
-                        fontSize = 14.sp,
+                        fontSize = 13.5.sp,
                         fontWeight = FontWeight.ExtraBold
                     )
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "ارسال سریع در تهران با ضمانت تازگی گل‌ها",
+                        text = "ارسال سریع ۲ ساعته در تهران با ضمانت طراوت",
                         color = Color.White.copy(alpha = 0.85f),
-                        fontSize = 11.sp
+                        fontSize = 10.5.sp
                     )
                 }
             }
         }
+
+        // Quick AI Doctor Shortcut Card
+        Surface(
+            onClick = onPlantDoctorClick,
+            color = DeepNavy,
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .testTag("home_plant_doctor_banner")
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(HeritageGold, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Psychology,
+                            contentDescription = null,
+                            tint = DeepNavy,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "🩺 اسکنر هوشمند تشخیص بیماری گیاه (AI)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "تشخیص فوری علت زردی، آفات و دریافت نسخه درمانی",
+                            fontSize = 9.5.sp,
+                            color = HeritageGoldLight
+                        )
+                    }
+                }
+
+                Surface(
+                    color = BotanicalGreen,
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "اسکن رایگان",
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
 
         // Category Filter Chips
         LazyRow(

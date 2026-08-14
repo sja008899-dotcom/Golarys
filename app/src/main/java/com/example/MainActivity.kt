@@ -141,7 +141,8 @@ fun GolarysAppContent(viewModel: GolarysViewModel) {
                             onCategorySelect = { viewModel.selectedCategory.value = it },
                             onProductClick = { activeDialogProduct = it },
                             onAddToCartClick = { product -> viewModel.addToCart(product) },
-                            onWishlistClick = { product -> viewModel.toggleWishlist(product) }
+                            onWishlistClick = { product -> viewModel.toggleWishlist(product) },
+                            onPlantDoctorClick = { currentTab = 8 }
                         )
 
                         1 -> CartScreen(
@@ -196,6 +197,13 @@ fun GolarysAppContent(viewModel: GolarysViewModel) {
                             transactions = walletTransactions
                         )
 
+                        8 -> PlantDoctorScreen(
+                            viewModel = viewModel,
+                            onNavigateToSupport = { _, _ ->
+                                currentTab = 5
+                            }
+                        )
+
                         else -> HomeScreen(
                             products = products,
                             selectedCategory = selectedCategory,
@@ -203,7 +211,8 @@ fun GolarysAppContent(viewModel: GolarysViewModel) {
                             onCategorySelect = { viewModel.selectedCategory.value = it },
                             onProductClick = { activeDialogProduct = it },
                             onAddToCartClick = { product -> viewModel.addToCart(product) },
-                            onWishlistClick = { product -> viewModel.toggleWishlist(product) }
+                            onWishlistClick = { product -> viewModel.toggleWishlist(product) },
+                            onPlantDoctorClick = { currentTab = 8 }
                         )
                     }
                 }

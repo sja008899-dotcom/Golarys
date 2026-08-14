@@ -36,9 +36,9 @@ fun GolarysBottomNav(
     val items = mutableListOf(
         NavItem(0, "فروشگاه", Icons.Default.LocalFlorist),
         NavItem(1, "سبد خرید", Icons.Default.ShoppingCart),
+        NavItem(8, "پزشک AI", Icons.Default.Psychology),
         NavItem(2, "سفارشات", Icons.Default.LocalShipping),
-        NavItem(3, "کیف پول", Icons.Default.AccountBalanceWallet),
-        NavItem(4, "فروشندگان", Icons.Default.Storefront),
+        NavItem(4, "فروشنده", Icons.Default.Storefront),
         NavItem(5, "پشتیبانی", Icons.Default.HeadsetMic),
         NavItem(6, "مجله", Icons.Default.AutoStories)
     )
