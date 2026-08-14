@@ -1,15 +1,12 @@
 package com.example.ui.components
 
-import android.content.Context
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -18,338 +15,313 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.credentials.CredentialManager
-import androidx.credentials.CustomCredential
-import androidx.credentials.GetCredentialRequest
 import com.example.ui.theme.*
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseUser
-import com.google.firebase.auth.GoogleAuthProvider
-import kotlinx.coroutines.launch
+import com.example.ui.viewmodel.GolarysViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AuthDialog(
-    currentUser: FirebaseUser?,
-    onDismiss: () -> Unit,
-    onAuthSuccess: (FirebaseUser) -> Unit,
-    onSignOut: () -> Unit
+    viewModel: GolarysViewModel,
+    onDismiss: () -> Unit
 ) {
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val auth = remember { runCatching { FirebaseAuth.getInstance() }.getOrNull() }
+    var isRegisterMode by remember { mutableStateOf(false) }
+    val pendingOtpEmail by viewModel.pendingVerificationEmail.collectAsState()
+    val generatedOtpCode by viewModel.generatedOtpCode.collectAsState()
+    val otpNoticeMessage by viewModel.otpNoticeMessage.collectAsState()
 
-    var isSignUp by remember { mutableStateOf(false) }
-    var emailInput by remember { mutableStateOf("") }
-    var passwordInput by remember { mutableStateOf("") }
-    var nameInput by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var fullName by remember { mutableStateOf("") }
+    var emailOrPhone by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var selectedRole by remember { mutableStateOf("CUSTOMER") } // "CUSTOMER" or "VENDOR"
+    var otpInput by remember { mutableStateOf("") }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
             modifier = Modifier
                 .fillMaxWidth()
-                .widthIn(max = 480.dp)
-                .padding(vertical = 16.dp)
+                .padding(8.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Top Header Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                // Header Logo / Icon
+                Box(
+                    modifier = Modifier
+                        .size(54.dp)
+                        .clip(CircleShape)
+                        .background(BotanicalGreen.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = if (currentUser != null) "حساب کاربری گل آریس" else if (isSignUp) "ثبت‌نام در گل آریس" else "ورود به حساب کاربری",
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 18.sp,
-                        color = BotanicalGreen
+                    Icon(
+                        imageVector = if (pendingOtpEmail != null) Icons.Default.MarkEmailRead else Icons.Default.LocalFlorist,
+                        contentDescription = null,
+                        tint = BotanicalGreen,
+                        modifier = Modifier.size(32.dp)
                     )
-
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(SurfaceVariantLight)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "بستن",
-                            tint = TextPrimary
-                        )
-                    }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                if (currentUser != null) {
-                    // Signed In View
-                    Box(
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(CircleShape)
-                            .background(BotanicalGreen.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
+                Text(
+                    text = if (pendingOtpEmail != null) "تأیید ایمیل و کد فعال‌سازی"
+                    else if (isRegisterMode) "ثبت‌نام در گل آریس"
+                    else "ورود به حساب کاربری",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 18.sp,
+                    color = BotanicalGreenDark
+                )
+
+                Text(
+                    text = if (pendingOtpEmail != null) "کد ۵ رقمی ارسالی به ایمیل خود را وارد نمایید"
+                    else if (isRegisterMode) "لطفاً اطلاعات خود را جهت ایجاد حساب وارد کنید"
+                    else "دسترسی به سفارشات، کیف پول و پنل‌های اختصاصی",
+                    fontSize = 12.sp,
+                    color = TextSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 14.dp)
+                )
+
+                // OTP Verification Step
+                if (pendingOtpEmail != null) {
+                    // Visual Email Delivery Simulation Banner
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = BotanicalGreen.copy(alpha = 0.08f)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = BotanicalGreen,
-                            modifier = Modifier.size(40.dp)
-                        )
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.MailOutline, contentDescription = null, tint = BotanicalGreen, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "پیامک / ایمیل ارسالی از Golarys Auth",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = BotanicalGreen
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "کد تأیید شما: ${generatedOtpCode ?: "12345"}",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = DeepNavy
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Text(
-                        text = currentUser.displayName.takeIf { !it.isNullOrBlank() } ?: "کاربر گل آریس",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = TextPrimary
+                    OutlinedTextField(
+                        value = otpInput,
+                        onValueChange = { if (it.length <= 5) otpInput = it },
+                        label = { Text("کد تأیید ۵ رقمی", fontSize = 12.sp) },
+                        placeholder = { Text(generatedOtpCode ?: "12345", fontSize = 12.sp) },
+                        trailingIcon = {
+                            TextButton(onClick = { otpInput = generatedOtpCode ?: "12345" }) {
+                                Text("درج خودکار", fontSize = 11.sp, color = BotanicalGreen, fontWeight = FontWeight.Bold)
+                            }
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
                     )
 
-                    Text(
-                        text = currentUser.email ?: "بدون ایمیل",
-                        fontSize = 12.sp,
-                        color = TextSecondary
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = {
+                            if (viewModel.verifyOtpCode(otpInput)) {
+                                onDismiss()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = BotanicalGreen),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(text = "تأیید و ورود به برنامه", fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    // Registration / Login Inputs
+                    if (isRegisterMode) {
+                        OutlinedTextField(
+                            value = fullName,
+                            onValueChange = { fullName = it },
+                            label = { Text("نام و نام خانوادگی", fontSize = 12.sp) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = BotanicalGreen) }
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Role Selector Chip
+                        Text(
+                            text = "نوع کاربری:",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextSecondary,
+                            modifier = Modifier.align(Alignment.Start)
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChip(
+                                selected = selectedRole == "CUSTOMER",
+                                onClick = { selectedRole = "CUSTOMER" },
+                                label = { Text("مشتری عادی", fontSize = 11.sp) },
+                                modifier = Modifier.weight(1f)
+                            )
+                            FilterChip(
+                                selected = selectedRole == "VENDOR",
+                                onClick = { selectedRole = "VENDOR" },
+                                label = { Text("فروشنده گل و گیاه", fontSize = 11.sp) },
+                                modifier = Modifier.weight(1.2f)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+
+                    OutlinedTextField(
+                        value = emailOrPhone,
+                        onValueChange = { emailOrPhone = it },
+                        label = { Text("ایمیل یا شماره همراه", fontSize = 12.sp) },
+                        placeholder = { Text(if (isRegisterMode) "مثال: info@golarys.ir" else "ایمیل یا شماره موبایل", fontSize = 11.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = BotanicalGreen) }
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    Surface(
-                        color = HeritageGold.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = "✨ کاربر تایید شده گل آریس (Golarys VIP)",
-                            color = DeepNavy,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
-                    }
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("رمز عبور", fontSize = 12.sp) },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = BotanicalGreen) }
+                    )
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Button(
                         onClick = {
-                            auth?.signOut()
-                            onSignOut()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = ErrorRed),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(imageVector = Icons.Default.ExitToApp, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "خروج از حساب کاربری", fontWeight = FontWeight.Bold)
-                    }
-                } else {
-                    // Sign In / Sign Up Form
-                    if (isSignUp) {
-                        OutlinedTextField(
-                            value = nameInput,
-                            onValueChange = { nameInput = it },
-                            label = { Text("نام و نام خانوادگی", fontSize = 12.sp) },
-                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            singleLine = true
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                    }
-
-                    OutlinedTextField(
-                        value = emailInput,
-                        onValueChange = { emailInput = it },
-                        label = { Text("آدرس ایمیل", fontSize = 12.sp) },
-                        leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    OutlinedTextField(
-                        value = passwordInput,
-                        onValueChange = { passwordInput = it },
-                        label = { Text("رمز عبور", fontSize = 12.sp) },
-                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                        visualTransformation = PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true
-                    )
-
-                    errorMessage?.let { err ->
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = err,
-                            color = ErrorRed,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    if (isLoading) {
-                        CircularProgressIndicator(color = BotanicalGreen)
-                    } else {
-                        Button(
-                            onClick = {
-                                if (emailInput.isBlank() || passwordInput.isBlank()) {
-                                    errorMessage = "لطفاً ایمیل و رمز عبور را وارد کنید"
-                                    return@Button
-                                }
-                                if (auth == null) {
-                                    errorMessage = "سرویس Firebase در دسترس نیست."
-                                    return@Button
-                                }
-                                isLoading = true
-                                errorMessage = null
-                                if (isSignUp) {
-                                    auth.createUserWithEmailAndPassword(emailInput.trim(), passwordInput)
-                                        .addOnSuccessListener { result ->
-                                            isLoading = false
-                                            result.user?.let { u ->
-                                                onAuthSuccess(u)
-                                                onDismiss()
-                                            }
-                                        }
-                                        .addOnFailureListener { exc ->
-                                            isLoading = false
-                                            errorMessage = "خطا در ثبت‌نام: ${exc.localizedMessage}"
-                                        }
+                            if (isRegisterMode) {
+                                if (emailOrPhone.isNotBlank() && password.isNotBlank()) {
+                                    viewModel.startRegistration(
+                                        fullName = fullName,
+                                        email = emailOrPhone,
+                                        phone = emailOrPhone,
+                                        password = password,
+                                        role = selectedRole
+                                    )
                                 } else {
-                                    auth.signInWithEmailAndPassword(emailInput.trim(), passwordInput)
-                                        .addOnSuccessListener { result ->
-                                            isLoading = false
-                                            result.user?.let { u ->
-                                                onAuthSuccess(u)
-                                                onDismiss()
-                                            }
-                                        }
-                                        .addOnFailureListener { exc ->
-                                            isLoading = false
-                                            errorMessage = "خطا در ورود: ${exc.localizedMessage}"
-                                        }
+                                    viewModel.showToast("لطفاً ایمیل و رمز عبور را وارد نمایید.")
                                 }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = BotanicalGreen),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = if (isSignUp) "ثبت‌نام حساب جدید" else "ورود به Golarys",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Credential Manager / Google Sign In Button
-                        OutlinedButton(
-                            onClick = {
-                                coroutineScope.launch {
-                                    isLoading = true
-                                    errorMessage = null
-                                    try {
-                                        val credentialManager = CredentialManager.create(context)
-                                        val googleIdOption = GetGoogleIdOption.Builder()
-                                            .setFilterByAuthorizedAccounts(false)
-                                            .setServerClientId("YOUR_WEB_CLIENT_ID.apps.googleusercontent.com")
-                                            .setAutoSelectEnabled(false)
-                                            .build()
-
-                                        val request = GetCredentialRequest.Builder()
-                                            .addCredentialOption(googleIdOption)
-                                            .build()
-
-                                        val result = credentialManager.getCredential(context = context, request = request)
-                                        val credential = result.credential
-                                        if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-                                            val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
-                                            val firebaseCredential = GoogleAuthProvider.getCredential(googleIdTokenCredential.idToken, null)
-                                            if (auth != null) {
-                                                auth.signInWithCredential(firebaseCredential)
-                                                    .addOnSuccessListener { authResult ->
-                                                        isLoading = false
-                                                        authResult.user?.let { u ->
-                                                            onAuthSuccess(u)
-                                                            onDismiss()
-                                                        }
-                                                    }
-                                                    .addOnFailureListener { e ->
-                                                        isLoading = false
-                                                        errorMessage = "ورود با گوگل ناموفق بود: ${e.localizedMessage}"
-                                                    }
-                                            } else {
-                                                isLoading = false
-                                                errorMessage = "سرویس Firebase در دسترس نیست"
-                                            }
-                                        } else {
-                                            isLoading = false
-                                            errorMessage = "نوع اعتبارنامه‌ی گوگل معتبر نیست"
-                                        }
-                                    } catch (e: Exception) {
-                                        isLoading = false
-                                        errorMessage = "خطا در فراخوانی ورود با گوگل (Credential Manager): ${e.localizedMessage}"
-                                    }
+                            } else {
+                                if (emailOrPhone.isNotBlank()) {
+                                    viewModel.login(emailOrPhone, password)
+                                    onDismiss()
+                                } else {
+                                    viewModel.showToast("لطفاً اطلاعات ورود را وارد فرمایید.")
                                 }
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                            border = BorderStroke(1.dp, HeritageGold)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AccountCircle,
-                                contentDescription = null,
-                                tint = HeritageGold,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "ورود سریع با گوگل (Credential Manager)",
-                                color = DeepNavy,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = BotanicalGreen),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = if (isRegisterMode) "ارسال کد فعال‌سازی ۵ رقمی" else "ورود به حساب",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
-                    TextButton(onClick = {
-                        isSignUp = !isSignUp
-                        errorMessage = null
-                    }) {
+                    TextButton(onClick = { isRegisterMode = !isRegisterMode }) {
                         Text(
-                            text = if (isSignUp) "قبلاً حساب کاربری دارید؟ ورود" else "حساب کاربری ندارید؟ ثبت‌نام",
+                            text = if (isRegisterMode) "قبلاً حساب کاربری داشته‌اید؟ ورود" else "حساب کاربری ندارید؟ ثبت‌نام رایگان",
                             fontSize = 12.sp,
                             color = BotanicalGreen,
                             fontWeight = FontWeight.Bold
                         )
+                    }
+                }
+
+                Divider(modifier = Modifier.padding(vertical = 12.dp), color = CardBorder)
+
+                // Quick Switcher for Instant Testing of all Roles
+                Text(
+                    text = "🚀 ورود سریع برای تست کامل امکانات پلتفرم:",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextSecondary
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.quickSwitchRole("SUPER_ADMIN")
+                            onDismiss()
+                        },
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(2.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, HeritageGold)
+                    ) {
+                        Text("ادمین کل", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = DeepNavy)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.quickSwitchRole("VENDOR")
+                            onDismiss()
+                        },
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(2.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, BotanicalGreen)
+                    ) {
+                        Text("فروشنده", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BotanicalGreen)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.quickSwitchRole("CUSTOMER")
+                            onDismiss()
+                        },
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(2.dp),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("مشتری", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                     }
                 }
             }

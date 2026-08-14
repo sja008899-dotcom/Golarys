@@ -7,19 +7,27 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [
+        UserEntity::class,
+        VendorApplicationEntity::class,
         FlowerProductEntity::class,
         CartItemEntity::class,
         OrderEntity::class,
-        WalletTransactionEntity::class
+        WalletTransactionEntity::class,
+        SupportTicketEntity::class,
+        ArticleEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
+    abstract fun userDao(): UserDao
+    abstract fun vendorDao(): VendorDao
     abstract fun productDao(): ProductDao
     abstract fun cartDao(): CartDao
     abstract fun orderDao(): OrderDao
     abstract fun walletDao(): WalletDao
+    abstract fun supportTicketDao(): SupportTicketDao
+    abstract fun articleDao(): ArticleDao
 
     companion object {
         @Volatile
@@ -30,8 +38,10 @@ abstract class AppDatabase : RoomDatabase() {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "golarys_database"
-                ).fallbackToDestructiveMigration().build()
+                    "golarys_flower_database"
+                )
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }

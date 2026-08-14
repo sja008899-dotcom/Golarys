@@ -30,16 +30,22 @@ data class NavItem(
 fun GolarysBottomNav(
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
-    cartBadgeCount: Int = 0
+    cartBadgeCount: Int = 0,
+    isSuperAdmin: Boolean = false
 ) {
-    val items = listOf(
+    val items = mutableListOf(
         NavItem(0, "فروشگاه", Icons.Default.LocalFlorist),
         NavItem(1, "سبد خرید", Icons.Default.ShoppingCart),
         NavItem(2, "سفارشات", Icons.Default.LocalShipping),
         NavItem(3, "کیف پول", Icons.Default.AccountBalanceWallet),
         NavItem(4, "فروشندگان", Icons.Default.Storefront),
-        NavItem(5, "مجله و سئو", Icons.Default.AutoStories)
+        NavItem(5, "پشتیبانی", Icons.Default.HeadsetMic),
+        NavItem(6, "مجله", Icons.Default.AutoStories)
     )
+
+    if (isSuperAdmin) {
+        items.add(NavItem(7, "ادمین کل", Icons.Default.AdminPanelSettings))
+    }
 
     Surface(
         color = DeepNavy,
@@ -55,7 +61,7 @@ fun GolarysBottomNav(
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Display RTL reversed order or standard left-to-right
+            // Display RTL reversed order
             items.reversed().forEach { item ->
                 val isSelected = selectedTab == item.index
                 val animatedBgColor by animateColorAsState(
@@ -71,7 +77,7 @@ fun GolarysBottomNav(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .background(animatedBgColor)
                         .clickable { onTabSelected(item.index) },
                     contentAlignment = Alignment.Center
@@ -87,7 +93,7 @@ fun GolarysBottomNav(
                                         containerColor = BotanicalGreen,
                                         contentColor = Color.White
                                     ) {
-                                        Text(text = cartBadgeCount.toString(), fontSize = 10.sp)
+                                        Text(text = cartBadgeCount.toString(), fontSize = 9.sp)
                                     }
                                 }
                             }
@@ -96,14 +102,14 @@ fun GolarysBottomNav(
                                 imageVector = item.icon,
                                 contentDescription = item.labelFa,
                                 tint = animatedIconColor,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
 
                         Text(
                             text = item.labelFa,
                             color = animatedIconColor,
-                            fontSize = 10.sp,
+                            fontSize = 9.sp,
                             fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Normal,
                             maxLines = 1,
                             modifier = Modifier.padding(top = 2.dp)

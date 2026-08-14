@@ -9,21 +9,22 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.local.FlowerProductEntity
 import com.example.ui.components.AuthDialog
 import com.example.ui.components.GolarysBottomNav
 import com.example.ui.components.GolarysTopBar
 import com.example.ui.components.ProductDetailDialog
+import com.example.ui.components.ProfileDialog
 import com.example.ui.screens.*
 import com.example.ui.theme.GolarysTheme
 import com.example.ui.theme.SurfaceLight
 import com.example.ui.viewmodel.GolarysViewModel
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -35,7 +36,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             GolarysTheme {
-                // Force Right-To-Left layout for Persian / Farsi language & Iranian e-commerce standards
+                // Force Right-To-Left layout for Persian language
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                     GolarysAppContent(viewModel = viewModel)
                 }
@@ -47,44 +48,70 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GolarysAppContent(viewModel: GolarysViewModel) {
-    val currentTab by viewModel.currentSelectedTab.collectAsStateWithLifecycle()
+    var currentTab by remember { mutableIntStateOf(0) }
+
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val selectedCategory by viewModel.selectedCategory.collectAsStateWithLifecycle()
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+    val isLoggedIn by viewModel.isLoggedIn.collectAsStateWithLifecycle()
+    val uiToast by viewModel.uiToast.collectAsStateWithLifecycle()
 
-    val products by viewModel.allProducts.collectAsStateWithLifecycle()
+    val products by viewModel.approvedProducts.collectAsStateWithLifecycle()
+    val allProductsAdmin by viewModel.allProducts.collectAsStateWithLifecycle()
     val cartItems by viewModel.cartItems.collectAsStateWithLifecycle()
     val orders by viewModel.orders.collectAsStateWithLifecycle()
-    val walletBalance by viewModel.walletBalanceToman.collectAsStateWithLifecycle()
     val walletTransactions by viewModel.walletTransactions.collectAsStateWithLifecycle()
+    val vendorApplications by viewModel.vendorApplications.collectAsStateWithLifecycle()
+    val supportTickets by viewModel.supportTickets.collectAsStateWithLifecycle()
+    val articles by viewModel.articles.collectAsStateWithLifecycle()
+    val allUsers by viewModel.allUsers.collectAsStateWithLifecycle()
 
-    val totalCartPrice by viewModel.cartTotalToman.collectAsStateWithLifecycle()
+    val totalCartPrice = cartItems.sumOf { it.priceToman * it.quantity }
     val totalCartCount = cartItems.sumOf { it.quantity }
+    val walletBalance = currentUser?.walletBalanceToman ?: 500000L
 
     var activeDialogProduct by remember { mutableStateOf<FlowerProductEntity?>(null) }
     var showAuthDialog by remember { mutableStateOf(false) }
+    var showProfileDialog by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
+    LaunchedEffect(uiToast) {
+        uiToast?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearToast()
+        }
+    }
+
+    val isSuperAdmin = currentUser?.role == "SUPER_ADMIN"
+
     Scaffold(
         topBar = {
             GolarysTopBar(
+                currentUser = currentUser,
                 cartCount = totalCartCount,
                 searchQuery = searchQuery,
-                onSearchQueryChange = { viewModel.setSearchQuery(it) },
-                onCartClick = { viewModel.currentSelectedTab.value = 1 },
-                onVendorTabClick = { viewModel.currentSelectedTab.value = 4 },
-                isVendorMode = (currentTab == 4),
-                onAccountClick = { showAuthDialog = true },
-                isLoggedIn = (currentUser != null)
+                onSearchQueryChange = { viewModel.searchQuery.value = it },
+                onCartClick = { currentTab = 1 },
+                onVendorTabClick = { currentTab = 4 },
+                onSupportClick = { currentTab = 5 },
+                onAdminClick = { currentTab = 7 },
+                onAccountClick = {
+                    if (currentUser != null) {
+                        showProfileDialog = true
+                    } else {
+                        showAuthDialog = true
+                    }
+                }
             )
         },
         bottomBar = {
             GolarysBottomNav(
                 selectedTab = currentTab,
-                onTabSelected = { viewModel.currentSelectedTab.value = it },
-                cartBadgeCount = totalCartCount
+                onTabSelected = { currentTab = it },
+                cartBadgeCount = totalCartCount,
+                isSuperAdmin = isSuperAdmin
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -99,7 +126,7 @@ fun GolarysAppContent(viewModel: GolarysViewModel) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .widthIn(max = 600.dp)
+                    .widthIn(max = 640.dp)
                     .align(Alignment.TopCenter)
             ) {
                 Crossfade(
@@ -111,21 +138,10 @@ fun GolarysAppContent(viewModel: GolarysViewModel) {
                             products = products,
                             selectedCategory = selectedCategory,
                             searchQuery = searchQuery,
-                            onCategorySelect = { viewModel.setCategory(it) },
+                            onCategorySelect = { viewModel.selectedCategory.value = it },
                             onProductClick = { activeDialogProduct = it },
-                            onAddToCartClick = { product ->
-                                viewModel.addToCart(product)
-                                coroutineScope.launch {
-                                    snackbarHostState.showSnackbar("🌹 «${product.titleFa}» به سبد خرید اضافه شد.")
-                                }
-                            },
-                            onWishlistClick = { product ->
-                                viewModel.toggleWishlist(product)
-                                coroutineScope.launch {
-                                    val msg = if (product.isWishlisted) "از علاقه‌مندی‌ها حذف شد" else "به علاقه‌مندی‌ها اضافه شد"
-                                    snackbarHostState.showSnackbar(msg)
-                                }
-                            }
+                            onAddToCartClick = { product -> viewModel.addToCart(product) },
+                            onWishlistClick = { product -> viewModel.toggleWishlist(product) }
                         )
 
                         1 -> CartScreen(
@@ -136,7 +152,8 @@ fun GolarysAppContent(viewModel: GolarysViewModel) {
                                 viewModel.updateCartQuantity(productId, delta)
                             },
                             onPlaceOrder = { address, timeSlot, paymentMethod ->
-                                viewModel.placeOrder(address, timeSlot, paymentMethod)
+                                viewModel.placeOrder(address, timeSlot, paymentMethod, totalCartPrice)
+                                currentTab = 2 // Navigate to Orders
                             }
                         )
 
@@ -153,28 +170,37 @@ fun GolarysAppContent(viewModel: GolarysViewModel) {
                         )
 
                         4 -> VendorDashboardScreen(
+                            currentUser = currentUser,
                             orders = orders,
-                            onAddProduct = { title, category, price, desc, light, water, temp ->
-                                viewModel.addVendorProduct(title, category, price, desc, light, water, temp)
-                                coroutineScope.launch {
-                                    snackbarHostState.showSnackbar("✅ محصول جدید با موفقیت به ویترین گل آریس افزوده شد.")
-                                }
-                            },
-                            onUpdateOrderStatus = { orderId, newStatus ->
-                                viewModel.updateOrderStatusByVendor(orderId, newStatus)
-                                coroutineScope.launch {
-                                    snackbarHostState.showSnackbar("وضعیت سفارش #$orderId بروزرسانی شد.")
-                                }
-                            }
+                            products = allProductsAdmin.filter { it.vendorId == currentUser?.id || currentUser?.role == "SUPER_ADMIN" },
+                            vendorApplications = vendorApplications,
+                            viewModel = viewModel
                         )
 
-                        5 -> JournalAndAdminScreen()
+                        5 -> SupportScreen(
+                            currentUser = currentUser,
+                            tickets = supportTickets,
+                            viewModel = viewModel
+                        )
+
+                        6 -> JournalScreen(
+                            articles = articles
+                        )
+
+                        7 -> AdminPanelScreen(
+                            viewModel = viewModel,
+                            users = allUsers,
+                            vendorApplications = vendorApplications,
+                            allProducts = allProductsAdmin,
+                            allOrders = orders,
+                            transactions = walletTransactions
+                        )
 
                         else -> HomeScreen(
                             products = products,
                             selectedCategory = selectedCategory,
                             searchQuery = searchQuery,
-                            onCategorySelect = { viewModel.setCategory(it) },
+                            onCategorySelect = { viewModel.selectedCategory.value = it },
                             onProductClick = { activeDialogProduct = it },
                             onAddToCartClick = { product -> viewModel.addToCart(product) },
                             onWishlistClick = { product -> viewModel.toggleWishlist(product) }
@@ -189,33 +215,26 @@ fun GolarysAppContent(viewModel: GolarysViewModel) {
             ProductDetailDialog(
                 product = product,
                 onDismiss = { activeDialogProduct = null },
-                onAddToCart = { p ->
-                    viewModel.addToCart(p)
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar("🌹 «${p.titleFa}» به سبد خرید اضافه شد.")
-                    }
-                },
-                onWishlistToggle = { p ->
-                    viewModel.toggleWishlist(p)
-                }
+                onAddToCart = { p -> viewModel.addToCart(p) },
+                onWishlistToggle = { p -> viewModel.toggleWishlist(p) }
             )
         }
 
-        // Auth Dialog (Sign In / Sign Up / Profile)
+        // Auth Dialog (Sign Up with OTP, Login)
         if (showAuthDialog) {
             AuthDialog(
-                currentUser = currentUser,
-                onDismiss = { showAuthDialog = false },
-                onAuthSuccess = { user ->
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar("خوش آمدید ${user.email ?: ""}!")
-                    }
-                },
-                onSignOut = {
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar("از حساب کاربری خارج شدید.")
-                    }
-                }
+                viewModel = viewModel,
+                onDismiss = { showAuthDialog = false }
+            )
+        }
+
+        // User Profile & Fast Switcher Dialog
+        if (showProfileDialog) {
+            ProfileDialog(
+                user = currentUser,
+                viewModel = viewModel,
+                onDismiss = { showProfileDialog = false },
+                onOpenAuth = { showAuthDialog = true }
             )
         }
     }

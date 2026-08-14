@@ -1,6 +1,5 @@
 package com.example.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -16,7 +15,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -25,19 +23,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.data.local.UserEntity
 import com.example.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GolarysTopBar(
+    currentUser: UserEntity?,
     cartCount: Int,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     onCartClick: () -> Unit,
     onVendorTabClick: () -> Unit,
-    isVendorMode: Boolean,
-    onAccountClick: () -> Unit = {},
-    isLoggedIn: Boolean = false
+    onSupportClick: () -> Unit,
+    onAdminClick: () -> Unit,
+    onAccountClick: () -> Unit
 ) {
     val context = LocalContext.current
     val logoResId = remember(context) {
@@ -45,7 +45,8 @@ fun GolarysTopBar(
         if (id != 0) id else R.drawable.ic_launcher_foreground
     }
 
-    var showSearchBar by remember { mutableStateOf(false) }
+    val isSuperAdmin = currentUser?.role == "SUPER_ADMIN"
+    val isVendor = currentUser?.role == "VENDOR"
 
     Surface(
         color = BotanicalGreenDark,
@@ -55,16 +56,17 @@ fun GolarysTopBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .padding(horizontal = 14.dp, vertical = 8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                // Action Buttons Left
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     // Cart Icon with Badge
                     BadgedBox(
@@ -86,7 +88,7 @@ fun GolarysTopBar(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(38.dp)
                                 .clip(CircleShape)
                                 .background(Color.White.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
@@ -94,55 +96,81 @@ fun GolarysTopBar(
                             Icon(
                                 imageVector = Icons.Default.ShoppingBag,
                                 contentDescription = "سبد خرید",
-                                tint = HeritageGold
+                                tint = HeritageGold,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
 
-                    // Account / Login Button
+                    // Account / Profile Button
                     IconButton(
                         onClick = onAccountClick,
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(38.dp)
                             .clip(CircleShape)
-                            .background(if (isLoggedIn) HeritageGold else Color.White.copy(alpha = 0.15f))
+                            .background(if (currentUser != null) HeritageGold else Color.White.copy(alpha = 0.15f))
                     ) {
                         Icon(
-                            imageVector = if (isLoggedIn) Icons.Default.VerifiedUser else Icons.Default.AccountCircle,
+                            imageVector = if (isSuperAdmin) Icons.Default.AdminPanelSettings else if (currentUser != null) Icons.Default.Person else Icons.Default.AccountCircle,
                             contentDescription = "حساب کاربری",
-                            tint = if (isLoggedIn) DeepNavy else HeritageGold
+                            tint = if (currentUser != null) DeepNavy else HeritageGold,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    // Support Quick Dial
+                    IconButton(
+                        onClick = onSupportClick,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.15f))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.HeadsetMic,
+                            contentDescription = "پشتیبانی",
+                            tint = HeritageGold,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
 
-                // Vendor / Customer Mode Switcher
-                FilterChip(
-                    selected = isVendorMode,
-                    onClick = { onVendorTabClick() },
-                    label = {
-                        Text(
-                            text = if (isVendorMode) "پنل فروشنده" else "فروشگاه آنلاین",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
+                // Middle: Vendor / Admin Shortcut Chip
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (isSuperAdmin) {
+                        FilterChip(
+                            selected = true,
+                            onClick = onAdminClick,
+                            label = { Text("پنل ادمین", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = HeritageGold,
+                                selectedLabelColor = DeepNavy
+                            ),
+                            shape = RoundedCornerShape(16.dp)
                         )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = if (isVendorMode) Icons.Default.Storefront else Icons.Default.LocalFlorist,
-                            contentDescription = null,
-                            tint = HeritageGold,
-                            modifier = Modifier.size(16.dp)
+                    } else {
+                        FilterChip(
+                            selected = isVendor,
+                            onClick = onVendorTabClick,
+                            label = { Text(if (isVendor) "پنل فروشنده" else "عضویت فروشندگان", fontSize = 11.sp) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Storefront,
+                                    contentDescription = null,
+                                    tint = if (isVendor) DeepNavy else HeritageGold,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = HeritageGold,
+                                selectedLabelColor = DeepNavy,
+                                containerColor = Color.White.copy(alpha = 0.12f),
+                                labelColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(16.dp)
                         )
-                    },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = HeritageGold,
-                        selectedLabelColor = DeepNavy,
-                        containerColor = Color.White.copy(alpha = 0.12f),
-                        labelColor = Color.White
-                    ),
-                    border = BorderStroke(1.dp, HeritageGold.copy(alpha = 0.5f)),
-                    shape = RoundedCornerShape(20.dp)
-                )
+                    }
+                }
 
                 // Brand Logo & Title (Golarys / گل آریس)
                 Row(
@@ -151,25 +179,25 @@ fun GolarysTopBar(
                 ) {
                     Column(
                         horizontalAlignment = Alignment.End,
-                        modifier = Modifier.padding(end = 10.dp)
+                        modifier = Modifier.padding(end = 8.dp)
                     ) {
                         Text(
                             text = "گل آریس",
                             color = HeritageGold,
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 20.sp
+                            fontSize = 18.sp
                         )
                         Text(
                             text = "Golarys.ir",
                             color = Color.White.copy(alpha = 0.8f),
                             fontWeight = FontWeight.Normal,
-                            fontSize = 10.sp
+                            fontSize = 9.sp
                         )
                     }
 
                     Box(
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(40.dp)
                             .clip(CircleShape)
                             .border(1.5.dp, HeritageGold, CircleShape)
                             .background(DeepNavy)
@@ -184,7 +212,7 @@ fun GolarysTopBar(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Search Bar Input Field
             TextField(
@@ -192,20 +220,21 @@ fun GolarysTopBar(
                 onValueChange = onSearchQueryChange,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(24.dp)),
+                    .height(46.dp)
+                    .clip(RoundedCornerShape(22.dp)),
                 placeholder = {
                     Text(
-                        text = "جستجوی گل، گیاه، دسته‌گل، گلدان...",
-                        fontSize = 13.sp,
-                        color = Color.White.copy(alpha = 0.6f)
+                        text = "جستجوی گل، گیاه، دسته‌گل، گلدان، سانسوریا...",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.65f)
                     )
                 },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = "جستجو",
-                        tint = HeritageGold
+                        tint = HeritageGold,
+                        modifier = Modifier.size(20.dp)
                     )
                 },
                 trailingIcon = {
@@ -214,7 +243,8 @@ fun GolarysTopBar(
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "پاک کردن",
-                                tint = Color.White
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
